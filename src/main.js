@@ -68,7 +68,7 @@ async function processImage(file) {
     // Lazy-init engine on first use with progress callback
     if (!engine) {
       setProgress('Initializing AI engine...', 5)
-      engine = createEngine('wasm', {
+      engine = createEngine(undefined, {
         onProgress: (phase, pct) => {
           setProgress(phase, pct)
         },
