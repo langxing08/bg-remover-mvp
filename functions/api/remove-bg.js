@@ -1,8 +1,9 @@
 /**
  * Cloudflare Pages Function — remove.bg API proxy
  *
- * Forwards the raw multipart POST to remove.bg, injecting the API key.
- * The key is read from environment variables and never exposed to the client.
+ * Receives JSON { image_base64, filename, content_type },
+ * reconstructs FormData matching the official remove.bg sample code,
+ * and forwards to https://api.remove.bg/v1.0/removebg
  */
 
 export async function onRequest(context) {
@@ -18,14 +19,32 @@ export async function onRequest(context) {
   }
 
   try {
-    // Forward raw body with only the essential headers
+    const { image_base64, filename, content_type } = await request.json()
+
+    if (!image_base64) {
+      return new Response('Missing image_base64 in request body', { status: 400 })
+    }
+
+    // Decode base64 → Blob
+    const binaryStr = atob(image_base64)
+    const bytes = new Uint8Array(binaryStr.length)
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i)
+    }
+    const blob = new Blob([bytes], { type: content_type || 'image/png' })
+
+    // Build FormData exactly like the official remove.bg sample code:
+    //   formData.append("size", "auto");
+    //   formData.append("image_file", blob);
+    const formData = new FormData()
+    formData.append('size', 'auto')
+    formData.append('image_file', blob, filename || 'image')
+
+    // Do NOT manually set Content-Type — fetch auto-sets it from FormData
     const response = await fetch('https://api.remove.bg/v1.0/removebg', {
       method: 'POST',
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
-      },
-      body: await request.arrayBuffer(),
+      headers: { 'X-Api-Key': apiKey },
+      body: formData,
     })
 
     if (!response.ok) {
@@ -35,7 +54,6 @@ export async function onRequest(context) {
       })
     }
 
-    // Return the processed image blob directly
     return new Response(response.body, {
       headers: { 'Content-Type': 'image/png' },
     })

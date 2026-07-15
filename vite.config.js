@@ -6,13 +6,10 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
-  // Local dev proxy for /api/remove-bg → remove.bg
-  // In production, Cloudflare Pages Function handles this.
   plugins: [
     {
       name: 'api-proxy',
       configureServer(server) {
-        // Use node built-in fetch (Node 18+)
         server.middlewares.use('/api/remove-bg', async (req, res) => {
           if (req.method !== 'POST') {
             res.statusCode = 405
@@ -28,22 +25,33 @@ export default defineConfig({
           }
 
           try {
-            // Collect the multipart form data from the incoming request
+            // Collect JSON body
             const buffers = []
             for await (const chunk of req) {
               buffers.push(chunk)
             }
-            const body = Buffer.concat(buffers)
-            const contentType = req.headers['content-type']
+            const { image_base64, filename, content_type } = JSON.parse(
+              Buffer.concat(buffers).toString()
+            )
 
-            // Forward to remove.bg
+            // Decode base64 → Blob-like buffer
+            const buf = Buffer.from(image_base64, 'base64')
+
+            // Build FormData matching the official remove.bg sample:
+            //   formData.append("size", "auto");
+            //   formData.append("image_file", blob);
+            const formData = new FormData()
+            formData.append('size', 'auto')
+            formData.append(
+              'image_file',
+              new Blob([buf], { type: content_type || 'image/png' }),
+              filename || 'image'
+            )
+
             const bgResponse = await fetch('https://api.remove.bg/v1.0/removebg', {
               method: 'POST',
-              headers: {
-                'X-Api-Key': apiKey,
-                'Content-Type': contentType,
-              },
-              body,
+              headers: { 'X-Api-Key': apiKey },
+              body: formData,
             })
 
             if (!bgResponse.ok) {
@@ -53,7 +61,6 @@ export default defineConfig({
               return
             }
 
-            // Stream the response back
             res.setHeader('Content-Type', 'image/png')
             const bgBody = await bgResponse.arrayBuffer()
             res.end(Buffer.from(bgBody))
