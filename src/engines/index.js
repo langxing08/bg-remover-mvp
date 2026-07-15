@@ -9,13 +9,13 @@ const ENGINE_MAP = {
 /**
  * Create a background removal engine by type.
  *
- * @param {'wasm'|'api'} [type='wasm'] - Engine type.
- *   Defaults to `VITE_ENGINE` env var, or `'wasm'` if not set.
+ * @param {'wasm'|'api'} [type='api'] - Engine type.
+ *   Defaults to `VITE_ENGINE` env var, or `'api'` if not set.
  * @param {object} [options] - Engine-specific options (e.g. onProgress).
  * @returns {WasmEngine|ApiEngine}
  */
 export function createEngine(type, options) {
-  const resolvedType = type || import.meta.env.VITE_ENGINE || 'wasm'
+  const resolvedType = type || import.meta.env.VITE_ENGINE || 'api'
   const EngineClass = ENGINE_MAP[resolvedType]
 
   if (!EngineClass) {

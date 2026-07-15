@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { createEngine } from './index'
 
 describe('createEngine', () => {
-  it('returns wasm engine by default', () => {
+  it('returns api engine by default', () => {
     const engine = createEngine()
-    expect(engine.constructor.name).toBe('WasmEngine')
+    expect(engine.constructor.name).toBe('ApiEngine')
   })
 
   it('returns wasm engine when type is "wasm"', () => {
