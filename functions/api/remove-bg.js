@@ -18,14 +18,13 @@ export async function onRequest(context) {
   }
 
   try {
-    // Preserve original headers (Content-Type with boundary) and add API key
-    const headers = new Headers(request.headers)
-    headers.set('X-Api-Key', apiKey)
-
-    // Forward the raw request body without parsing/reconstructing FormData
+    // Forward raw body with only the essential headers
     const response = await fetch('https://api.remove.bg/v1.0/removebg', {
       method: 'POST',
-      headers,
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream',
+      },
       body: await request.arrayBuffer(),
     })
 
