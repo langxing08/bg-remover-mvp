@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Free online image background remover. Remove backgrounds from images instantly in your browser — no upload required, your privacy is protected." />
+    <title>Background Remover — Instant Image Background Removal</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Background Remover</h1>
+        <p class="subtitle">Remove image backgrounds instantly, right in your browser ✨</p>
+      </header>
+
+      <main>
+        <!-- Upload Zone -->
+        <div id="uploadZone" class="upload-zone">
+          <div class="upload-content">
+            <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <p class="upload-text">Drop an image here or <span class="upload-link">click to browse</span></p>
+            <p class="upload-hint">Supports JPG, PNG, WEBP</p>
+          </div>
+          <input id="fileInput" type="file" accept="image/*" hidden />
+        </div>
+
+        <!-- Processing Indicator -->
+        <div id="processing" class="processing" hidden>
+          <div class="spinner"></div>
+          <p id="progressText" class="progress-text">Loading model...</p>
+          <div class="progress-bar-track">
+            <div id="progressBar" class="progress-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Result View -->
+        <div id="result" class="result" hidden>
+          <div class="result-tabs">
+            <button id="tabOriginal" class="tab active">Original</button>
+            <button id="tabResult" class="tab">Result</button>
+          </div>
+          <div class="result-viewport">
+            <div id="originalPanel" class="panel active">
+              <img id="originalImage" alt="Original" />
+            </div>
+            <div id="resultPanel" class="panel">
+              <img id="resultImage" alt="Processed" />
+            </div>
+          </div>
+          <div class="result-actions">
+            <span id="imageInfo" class="image-info"></span>
+            <button id="downloadBtn" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download PNG
+            </button>
+            <button id="resetBtn" class="btn btn-secondary">Remove Another</button>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <p>All processing is done locally in your browser. Your images never leave your device. 🔒</p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
