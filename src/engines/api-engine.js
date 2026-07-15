@@ -18,7 +18,7 @@ export class ApiEngine {
     }
 
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('image_file', file)
 
     const response = await fetch('/api/remove-bg', {
       method: 'POST',

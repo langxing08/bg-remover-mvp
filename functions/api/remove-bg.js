@@ -1,9 +1,8 @@
 /**
  * Cloudflare Pages Function — remove.bg API proxy
  *
- * Receives multipart POST with `file` field, forwards to remove.bg,
- * returns the processed PNG image. The API key is read from environment
- * variables (REMOVE_BG_API_KEY) and never exposed to the client.
+ * Forwards the raw multipart POST to remove.bg, injecting the API key.
+ * The key is read from environment variables and never exposed to the client.
  */
 
 export async function onRequest(context) {
@@ -19,22 +18,15 @@ export async function onRequest(context) {
   }
 
   try {
-    const formData = await request.formData()
-    const imageFile = formData.get('file')
+    // Preserve original headers (Content-Type with boundary) and add API key
+    const headers = new Headers(request.headers)
+    headers.set('X-Api-Key', apiKey)
 
-    if (!imageFile) {
-      return new Response('Missing "file" field in form data', { status: 400 })
-    }
-
-    // Build request to remove.bg
-    const removeBgBody = new FormData()
-    removeBgBody.append('image_file', imageFile)
-    removeBgBody.append('size', 'auto')
-
+    // Forward the raw request body without parsing/reconstructing FormData
     const response = await fetch('https://api.remove.bg/v1.0/removebg', {
       method: 'POST',
-      headers: { 'X-Api-Key': apiKey },
-      body: removeBgBody,
+      headers,
+      body: await request.arrayBuffer(),
     })
 
     if (!response.ok) {
