@@ -37,7 +37,7 @@ export default defineConfig({
             const contentType = req.headers['content-type']
 
             // Forward to remove.bg
-            const bgResponse = await fetch('https://api.remove.bg/v1.0/removebackground', {
+            const bgResponse = await fetch('https://api.remove.bg/v1.0/removebg', {
               method: 'POST',
               headers: {
                 'X-Api-Key': apiKey,
