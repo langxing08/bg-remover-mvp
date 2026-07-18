@@ -85,15 +85,15 @@ export async function onRequest(context) {
     const token = `${btoa(sessionData)}.${sigHex}`
 
     // Redirect back to frontend with session cookie
+    // Note: We use new Response() instead of Response.redirect() because
+    // Cloudflare Workers marks redirect() headers as immutable, making
+    // headers.append() throw "Can't modify immutable headers".
     const frontendUrl = new URL(env.APP_URL)
-    const response = Response.redirect(frontendUrl.toString(), 302)
-
-    response.headers.append(
-      'Set-Cookie',
-      `session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`
-    )
-
-    return response
+    const headers = new Headers({
+      'Location': frontendUrl.toString(),
+      'Set-Cookie': `session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`,
+    })
+    return new Response(null, { status: 302, headers })
   } catch (err) {
     return redirectWithError(env, err.message)
   }
