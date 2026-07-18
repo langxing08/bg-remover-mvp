@@ -5,6 +5,9 @@
 export async function onRequest(context) {
   const { request, env } = context
 
+  // Fallback in case Cloudflare Pages env var is not set (e.g. after project reconnection)
+  const appUrl = env.APP_URL || 'https://removebg.happylove.space'
+
   try {
     const url = new URL(request.url)
     const code = url.searchParams.get('code')
@@ -22,7 +25,7 @@ export async function onRequest(context) {
         code,
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: `${env.APP_URL}/api/auth/google/callback`,
+        redirect_uri: `${appUrl}/api/auth/google/callback`,
         grant_type: 'authorization_code',
       }),
     })
@@ -90,7 +93,7 @@ export async function onRequest(context) {
     // "Can't modify immutable headers". Even new Response(null, {status:302, headers})
     // can hit this when Cloudflare adds platform headers after the function returns.
     // Workaround: return a 200 HTML page that sets the cookie and does a JS redirect.
-    const frontendUrl = new URL(env.APP_URL)
+    const frontendUrl = new URL(appUrl)
     const redirectHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <script>window.location.replace(${JSON.stringify(frontendUrl.toString())})</script>
 </head><body>Redirecting...</body></html>`
@@ -107,7 +110,7 @@ export async function onRequest(context) {
 }
 
 function redirectWithError(env, message) {
-  const url = new URL(env.APP_URL)
+  const url = new URL(env.APP_URL || 'https://removebg.happylove.space')
   url.searchParams.set('auth_error', message.slice(0, 100))
   return Response.redirect(url.toString(), 302)
 }
