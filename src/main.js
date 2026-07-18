@@ -18,6 +18,13 @@ const downloadBtn = document.getElementById('downloadBtn')
 const resetBtn = document.getElementById('resetBtn')
 const imageInfo = document.getElementById('imageInfo')
 
+/* ─── Auth DOM refs ─── */
+const loginBtn = document.getElementById('loginBtn')
+const logoutBtn = document.getElementById('logoutBtn')
+const userInfo = document.getElementById('userInfo')
+const userAvatar = document.getElementById('userAvatar')
+const userName = document.getElementById('userName')
+
 /* ─── State ─── */
 let engine = null
 let currentResultBlob = null
@@ -157,4 +164,37 @@ resetBtn.addEventListener('click', () => {
   originalImage.src = ''
   resultImage.src = ''
   showUpload()
+})
+
+/* ─── Google Auth ─── */
+
+// Check session on page load
+;(async function checkAuth() {
+  try {
+    const res = await fetch('/api/me')
+    const data = await res.json()
+    if (data.user) {
+      userAvatar.src = data.user.picture || ''
+      userName.textContent = data.user.name || data.user.email
+      loginBtn.hidden = true
+      userInfo.hidden = false
+    } else {
+      loginBtn.hidden = false
+      userInfo.hidden = true
+    }
+  } catch {
+    loginBtn.hidden = false
+    userInfo.hidden = true
+  }
+})()
+
+loginBtn.addEventListener('click', () => {
+  window.location.href = '/api/auth/google'
+})
+
+logoutBtn.addEventListener('click', async () => {
+  // Clear session cookie by setting it to expire in the past
+  document.cookie = 'session=; Path=/; Max-Age=0'
+  userInfo.hidden = true
+  loginBtn.hidden = false
 })
