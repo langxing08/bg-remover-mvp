@@ -1,6 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Load .env so process.env has all vars in configureServer
+  const env = loadEnv(mode, process.cwd(), '')
+  Object.assign(process.env, env)
+
+  return {
   build: {
     target: 'es2020',
     outDir: 'dist',
@@ -66,7 +71,9 @@ export default defineConfig({
         })
 
         // ── /api/auth/google: redirect to Google OAuth ──
-        server.middlewares.use('/api/auth/google', async (req, res) => {
+        server.middlewares.use(async (req, res, next) => {
+          const path = req.url?.split('?')[0] || ''
+          if (path !== '/api/auth/google') { next(); return }
           const redirectUri = `${process.env.APP_URL || 'http://localhost:5173'}/api/auth/google/callback`
           const params = new URLSearchParams({
             client_id: process.env.GOOGLE_CLIENT_ID,
@@ -190,4 +197,5 @@ export default defineConfig({
       },
     },
   ],
+  }
 })
