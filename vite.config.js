@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
   build: {
     target: 'es2020',
-    outDir: 'dist',
+    outDir: 'out',
     sourcemap: false,
   },
   plugins: [
