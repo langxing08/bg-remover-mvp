@@ -77,7 +77,7 @@ header h1 {
   min-height: 36px;
 }
 
-.btn-google {
+.btn-google:not([hidden]) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -97,7 +97,7 @@ header h1 {
   box-shadow: var(--shadow-sm);
 }
 
-.user-info {
+.user-info:not([hidden]) {
   display: flex;
   align-items: center;
   gap: 10px;

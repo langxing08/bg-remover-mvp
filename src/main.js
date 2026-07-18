@@ -194,7 +194,8 @@ loginBtn.addEventListener('click', () => {
 
 logoutBtn.addEventListener('click', async () => {
   // Clear session cookie by setting it to expire in the past
-  document.cookie = 'session=; Path=/; Max-Age=0'
+  // Must match original cookie attributes (Secure, SameSite) to overwrite it
+  document.cookie = 'session=; Path=/; Secure; SameSite=Lax; Max-Age=0'
   userInfo.hidden = true
   loginBtn.hidden = false
 })
