@@ -45,6 +45,17 @@ export async function onRequest(context) {
     }
 
     const user = await userResponse.json()
+    const now = new Date().toISOString()
+
+    // Save to D1 (insert or update)
+    if (env.DB) {
+      await env.DB.prepare(
+        `INSERT INTO users (google_id, email, name, picture, created_at, last_login_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(google_id) DO UPDATE SET
+           email = ?2, name = ?3, picture = ?4, last_login_at = ?6`
+      ).bind(user.id, user.email, user.name, user.picture, now, now).run()
+    }
 
     // Create a simple signed session token
     const sessionData = JSON.stringify({
