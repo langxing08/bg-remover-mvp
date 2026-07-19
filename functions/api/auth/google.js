@@ -5,8 +5,7 @@
 export async function onRequest(context) {
   const { env } = context
 
-  // Fallback in case Cloudflare Pages env var is not set (e.g. after project reconnection)
-  const appUrl = env.APP_URL || 'https://removebg.happylove.space'
+  const appUrl = env.APP_URL
   const clientId = env.GOOGLE_CLIENT_ID
   const redirectUri = `${appUrl}/api/auth/google/callback`
 

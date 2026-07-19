@@ -5,8 +5,7 @@
 export async function onRequest(context) {
   const { request, env } = context
 
-  // Fallback in case Cloudflare Pages env var is not set (e.g. after project reconnection)
-  const appUrl = env.APP_URL || 'https://removebg.happylove.space'
+  const appUrl = env.APP_URL
 
   try {
     const url = new URL(request.url)
@@ -110,7 +109,7 @@ export async function onRequest(context) {
 }
 
 function redirectWithError(env, message) {
-  const url = new URL(env.APP_URL || 'https://removebg.happylove.space')
+  const url = new URL(env.APP_URL)
   url.searchParams.set('auth_error', message.slice(0, 100))
   return Response.redirect(url.toString(), 302)
 }
