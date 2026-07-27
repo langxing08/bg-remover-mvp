@@ -1,4 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
+import { createOrder, captureOrder } from './server/paypal.js'
+import { createWebhookHandler } from './server/paypal-webhook.js'
 
 export default defineConfig(({ mode }) => {
   // Load .env so process.env has all vars in configureServer
@@ -194,6 +196,90 @@ export default defineConfig(({ mode }) => {
             res.end(JSON.stringify({ user: null }))
           }
         })
+
+        // ── Helper: extract user ID from session cookie ──
+        function extractUserIdFromCookie(cookieHeader) {
+          try {
+            const cookies = Object.fromEntries(
+              cookieHeader.split(';').filter(Boolean).map(c => {
+                const [k, ...v] = c.trim().split('=')
+                return [k, v.join('=')]
+              })
+            )
+            const token = cookies.session
+            if (!token) return 'anonymous'
+            const [encodedData] = token.split('.')
+            const user = JSON.parse(Buffer.from(encodedData, 'base64').toString('utf8'))
+            return user.sub || user.email || 'anonymous'
+          } catch {
+            return 'anonymous'
+          }
+        }
+
+        // ── /api/paypal/config: return PayPal Client ID ──
+        server.middlewares.use('/api/paypal/config', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ clientId: process.env.PAYPAL_CLIENT_ID || '' }))
+        })
+
+        // ── /api/paypal/create-order: create a PayPal order ──
+        server.middlewares.use('/api/paypal/create-order', async (req, res) => {
+          if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+
+          try {
+            const buffers = []
+            for await (const chunk of req) { buffers.push(chunk) }
+            const { planId, price } = JSON.parse(Buffer.concat(buffers).toString())
+
+            const planNames = { plus: 'Plus Plan — 30 removals/month', business: 'Business Plan — 150 removals/month' }
+            const planName = planNames[planId] || 'Plan'
+            const appUrl = process.env.APP_URL || 'http://localhost:5173'
+            const userId = extractUserIdFromCookie(req.headers.cookie || '')
+
+            const order = await createOrder(
+              process.env.PAYPAL_CLIENT_ID,
+              process.env.PAYPAL_CLIENT_SECRET,
+              { planId, planName, price, userId, appUrl }
+            )
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ id: order.id }))
+          } catch (err) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: err.message }))
+          }
+        })
+
+        // ── /api/paypal/capture-order: capture an approved order ──
+        server.middlewares.use('/api/paypal/capture-order', async (req, res) => {
+          if (req.method !== 'POST') { res.statusCode = 405; res.end('Method not allowed'); return }
+
+          try {
+            const buffers = []
+            for await (const chunk of req) { buffers.push(chunk) }
+            const { orderId } = JSON.parse(Buffer.concat(buffers).toString())
+
+            const capture = await captureOrder(
+              process.env.PAYPAL_CLIENT_ID,
+              process.env.PAYPAL_CLIENT_SECRET,
+              orderId
+            )
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(capture))
+          } catch (err) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: err.message }))
+          }
+        })
+
+        // ── /api/paypal/webhook: receive PayPal webhook events ──
+        const webhookHandler = createWebhookHandler(
+          process.env.PAYPAL_CLIENT_ID,
+          process.env.PAYPAL_CLIENT_SECRET,
+          process.env.PAYPAL_WEBHOOK_ID || ''
+        )
+        server.middlewares.use('/api/paypal/webhook', webhookHandler)
       },
     },
   ],

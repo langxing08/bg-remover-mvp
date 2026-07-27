@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+out
 *.local
 .env
 
@@ -23,3 +24,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local guides & retrospectives (not uploaded to GitHub)
+retrospective-*.md
+google-oauth-guide.md

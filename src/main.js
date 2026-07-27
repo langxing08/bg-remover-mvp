@@ -1,7 +1,31 @@
 import './style.css'
 import { createEngine } from './engines/index.js'
+import {
+  initPricingModal,
+  openPricingModal,
+  closePricingModal,
+  updateHeaderBadge,
+  hideHeaderBadge,
+  getExhaustedHTML,
+  getWarningHTML,
+  loadUsage,
+  saveUsage,
+  resetUsage,
+} from './pricing.js'
+import { startPaypalCheckout, loadSavedPlan } from './paypal.js'
+
+/* ─── Dev mode: init mock API before anything else ─── */
+if (location.search.includes('dev=1')) {
+  const { initDevMock } = await import('./dev-panel.js')
+  initDevMock()
+} else if (localStorage.getItem('bg_remover_dev_state')) {
+  // Clean up stale dev panel state — but NOT bg_remover_usage,
+  // which is the real usage counter updated by processImage()
+  localStorage.removeItem('bg_remover_dev_state')
+}
 
 /* ─── DOM refs ─── */
+const main = document.querySelector('main')
 const uploadZone = document.getElementById('uploadZone')
 const fileInput = document.getElementById('fileInput')
 const processing = document.getElementById('processing')
@@ -24,12 +48,138 @@ const logoutBtn = document.getElementById('logoutBtn')
 const userInfo = document.getElementById('userInfo')
 const userAvatar = document.getElementById('userAvatar')
 const userName = document.getElementById('userName')
+const pricingBtn = document.getElementById('pricingBtn')
+const planBadge = document.getElementById('planBadge')
 
 /* ─── State ─── */
 let engine = null
 let currentResultBlob = null
 let currentFileName = ''
 let isProcessing = false
+
+const app = {
+  isAuthenticated: false,
+  planTier: 'free',     // 'free' | 'plus' | 'business'
+  planUsed: 0,          // current cycle usage
+  planTotal: 3,         // total for current plan
+}
+
+/* ─── Pricing modal init ─── */
+initPricingModal()
+
+/* ─── Exhausted zone container (inserted once) ─── */
+let exhaustedEl = null
+function ensureExhaustedZone() {
+  if (exhaustedEl) return
+  const wrapper = document.createElement('div')
+  wrapper.innerHTML = getExhaustedHTML()
+  exhaustedEl = wrapper.firstElementChild
+  exhaustedEl.hidden = true
+  main.insertBefore(exhaustedEl, processing)
+}
+
+/* ─── Helpers ─── */
+
+function isFree() {
+  return app.planTier === 'free'
+}
+
+function isExhausted() {
+  return app.isAuthenticated && isFree() && app.planUsed >= app.planTotal
+}
+
+function isPlusNearLimit() {
+  return app.planTier === 'plus' && app.planUsed >= 25
+}
+
+function showDefaultView() {
+  if (isExhausted()) {
+    showExhausted()
+  } else {
+    showUpload()
+  }
+}
+
+/* ─── UI transitions ─── */
+function showUpload() {
+  uploadZone.hidden = false
+  if (exhaustedEl) exhaustedEl.hidden = true
+  processing.hidden = true
+  result.hidden = true
+}
+
+function showProcessing() {
+  uploadZone.hidden = true
+  if (exhaustedEl) exhaustedEl.hidden = true
+  processing.hidden = false
+  result.hidden = true
+  setProgress('Starting...', 0)
+}
+
+function showResult() {
+  uploadZone.hidden = true
+  if (exhaustedEl) exhaustedEl.hidden = true
+  processing.hidden = true
+  result.hidden = false
+}
+
+function showExhausted() {
+  ensureExhaustedZone()
+  uploadZone.hidden = true
+  processing.hidden = true
+  result.hidden = true
+  exhaustedEl.hidden = false
+}
+
+function setProgress(text, pct) {
+  progressText.textContent = text
+  progressBar.style.width = `${Math.min(pct, 100)}%`
+}
+
+/* ─── Result-area extras: callouts ─── */
+
+function clearResultExtras() {
+  const existing = result.querySelectorAll('.callout')
+  existing.forEach(el => el.remove())
+}
+
+function injectCallout(type, data) {
+  clearResultExtras()
+  const html = getWarningHTML(type, data)
+  if (!html) return
+  const wrapper = document.createElement('div')
+  wrapper.innerHTML = html
+  const calloutEl = wrapper.firstElementChild
+  result.appendChild(calloutEl)
+  // Wire the "See Plans / Upgrade" button
+  const ctaBtn = calloutEl.querySelector('.callout-pricing-btn')
+  if (ctaBtn) ctaBtn.addEventListener('click', openPricingModal)
+  // Wire the close button
+  const closeBtn = calloutEl.querySelector('.callout-close')
+  if (closeBtn) closeBtn.addEventListener('click', () => calloutEl.remove())
+}
+
+/* ─── Header badge / pricing button ─── */
+
+function updatePlanDisplay() {
+  if (app.isAuthenticated) {
+    updateHeaderBadge(app.planUsed, app.planTier)
+  } else {
+    hideHeaderBadge()
+  }
+}
+
+pricingBtn.addEventListener('click', openPricingModal)
+
+// Also open pricing when clicking the plan badge
+planBadge.addEventListener('click', openPricingModal)
+
+/* ─── PayPal: handle plan selection from pricing modal ─── */
+document.addEventListener('plan:select', (e) => {
+  const { planId } = e.detail
+  closePricingModal()
+  startPaypalCheckout(planId)
+})
 
 /* ─── Upload handlers ─── */
 uploadZone.addEventListener('click', () => fileInput.click())
@@ -62,6 +212,13 @@ fileInput.addEventListener('change', () => {
 /* ─── Core processing ─── */
 async function processImage(file) {
   if (isProcessing) return
+
+  // Block if free user has exhausted attempts
+  if (isExhausted()) {
+    showExhausted()
+    return
+  }
+
   isProcessing = true
 
   currentFileName = file.name.replace(/\.[^.]+$/, '')
@@ -100,39 +257,53 @@ async function processImage(file) {
     // Reset to original tab when showing result
     switchTab('original')
 
+    // Prepare result area extras based on auth & plan
+    clearResultExtras()
+
+    if (!app.isAuthenticated) {
+      // ── Unauthenticated: lock download, show login prompt ──
+      downloadBtn.innerHTML = '🔒 Sign in to Download'
+      downloadBtn.disabled = false
+      // Login prompt appears when they click download
+    } else {
+      // ── Authenticated: normal download ──
+      downloadBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download PNG
+      `
+      downloadBtn.disabled = false
+
+      // Increment usage for free users after successful processing
+      if (isFree()) {
+        app.planUsed++
+        saveUsage(app.planUsed)
+        updatePlanDisplay()
+
+        // Show warning if this was second-to-last attempt
+        const remaining = app.planTotal - app.planUsed
+        if (remaining === 1) {
+          injectCallout('low-attempt', { remaining: 1 })
+        }
+      }
+
+      // Show upgrade suggestion if Plus user is near limit
+      if (isPlusNearLimit()) {
+        injectCallout('plus-upgrade', { used: app.planUsed, total: 30 })
+      }
+    }
+
     showResult()
   } catch (err) {
     console.error('Background removal failed:', err)
     alert(`Failed to remove background: ${err.message || 'Unknown error'}`)
-    showUpload()
+    showDefaultView()
   } finally {
     isProcessing = false
   }
-}
-
-/* ─── UI transitions ─── */
-function showUpload() {
-  uploadZone.hidden = false
-  processing.hidden = true
-  result.hidden = true
-}
-
-function showProcessing() {
-  uploadZone.hidden = true
-  processing.hidden = false
-  result.hidden = true
-  setProgress('Starting...', 0)
-}
-
-function showResult() {
-  uploadZone.hidden = true
-  processing.hidden = true
-  result.hidden = false
-}
-
-function setProgress(text, pct) {
-  progressText.textContent = text
-  progressBar.style.width = `${Math.min(pct, 100)}%`
 }
 
 /* ─── Tab switching ─── */
@@ -150,6 +321,11 @@ tabResult.addEventListener('click', () => switchTab('result'))
 
 /* ─── Download ─── */
 downloadBtn.addEventListener('click', () => {
+  if (!app.isAuthenticated) {
+    window.location.href = '/api/auth/google'
+    return
+  }
+
   if (!currentResultBlob) return
   const a = document.createElement('a')
   a.href = URL.createObjectURL(currentResultBlob)
@@ -157,13 +333,14 @@ downloadBtn.addEventListener('click', () => {
   a.click()
 })
 
-/* ─── Reset ─── */
+/* ─── Reset (Remove Another) ─── */
 resetBtn.addEventListener('click', () => {
   currentResultBlob = null
   currentFileName = ''
   originalImage.src = ''
   resultImage.src = ''
-  showUpload()
+  clearResultExtras()
+  showDefaultView()
 })
 
 /* ─── Google Auth ─── */
@@ -174,17 +351,47 @@ resetBtn.addEventListener('click', () => {
     const res = await fetch('/api/me')
     const data = await res.json()
     if (data.user) {
+      app.isAuthenticated = true
       userAvatar.src = data.user.picture || ''
       userName.textContent = data.user.name || data.user.email
       loginBtn.hidden = true
       userInfo.hidden = false
+
+      // Load plan info from API (dev mock), saved paid plan, or localStorage
+      if (data.plan) {
+        app.planTier = data.plan.tier
+        app.planUsed = data.plan.used
+        app.planTotal = data.plan.total
+      } else {
+        const savedPlan = loadSavedPlan()
+        if (savedPlan) {
+          app.planTier = savedPlan.tier
+          app.planUsed = savedPlan.used
+          app.planTotal = savedPlan.total
+        } else {
+          const usage = loadUsage()
+          app.planUsed = usage.used
+          app.planTier = 'free'
+          app.planTotal = 3
+        }
+      }
+      updatePlanDisplay()
+
+      // If exhausted, show exhausted state instead of upload zone
+      if (isExhausted()) {
+        showExhausted()
+      }
     } else {
+      app.isAuthenticated = false
       loginBtn.hidden = false
       userInfo.hidden = true
+      hideHeaderBadge()
     }
   } catch {
+    app.isAuthenticated = false
     loginBtn.hidden = false
     userInfo.hidden = true
+    hideHeaderBadge()
   }
 })()
 
@@ -198,4 +405,8 @@ logoutBtn.addEventListener('click', async () => {
   document.cookie = 'session=; Path=/; Secure; SameSite=Lax; Max-Age=0'
   userInfo.hidden = true
   loginBtn.hidden = false
+  app.isAuthenticated = false
+  hideHeaderBadge()
+  // On logout, reset to upload zone (unless exhausted which requires login)
+  showUpload()
 })
