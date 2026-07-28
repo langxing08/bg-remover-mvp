@@ -14,15 +14,7 @@ import {
 } from './pricing.js'
 import { startPaypalCheckout, loadSavedPlan } from './paypal.js'
 
-/* ─── Dev mode: init mock API before anything else ─── */
-if (location.search.includes('dev=1')) {
-  const { initDevMock } = await import('./dev-panel.js')
-  initDevMock()
-} else if (localStorage.getItem('bg_remover_dev_state')) {
-  // Clean up stale dev panel state — but NOT bg_remover_usage,
-  // which is the real usage counter updated by processImage()
-  localStorage.removeItem('bg_remover_dev_state')
-}
+/* ─── DOM refs ─── */
 
 /* ─── DOM refs ─── */
 const main = document.querySelector('main')
@@ -347,6 +339,13 @@ resetBtn.addEventListener('click', () => {
 
 // Check session on page load
 ;(async function checkAuth() {
+  // Init dev mock first (top-level await breaks Vite's tree-shaking for other imports)
+  if (location.search.includes('dev=1')) {
+    const { initDevMock } = await import('./dev-panel.js')
+    initDevMock()
+  } else if (localStorage.getItem('bg_remover_dev_state')) {
+    localStorage.removeItem('bg_remover_dev_state')
+  }
   try {
     const res = await fetch('/api/me')
     const data = await res.json()
