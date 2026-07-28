@@ -183,7 +183,7 @@ export function clearSavedPlan() {
 
 /* ─── Main entry: called when user clicks a plan CTA ─── */
 
-const PLAN_INFO = {
+export const PLAN_INFO = {
   plus:  { name: 'Plus',  price: 9,  total: 5 },
   business: { name: 'Business', price: 29, total: 10 },
 }

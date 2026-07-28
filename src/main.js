@@ -12,7 +12,7 @@ import {
   saveUsage,
   resetUsage,
 } from './pricing.js'
-import { startPaypalCheckout, loadSavedPlan, updatePlanUsage } from './paypal.js'
+import { startPaypalCheckout, loadSavedPlan, updatePlanUsage, PLAN_INFO } from './paypal.js'
 
 /* ─── DOM refs ─── */
 
@@ -383,7 +383,8 @@ resetBtn.addEventListener('click', () => {
         if (savedPlan) {
           app.planTier = savedPlan.tier
           app.planUsed = savedPlan.used
-          app.planTotal = savedPlan.total
+          // Always derive total from PLAN_INFO (not saved data) so limit changes take effect immediately
+          app.planTotal = PLAN_INFO[savedPlan.tier]?.total || savedPlan.total
         } else {
           const usage = loadUsage()
           app.planUsed = usage.used
