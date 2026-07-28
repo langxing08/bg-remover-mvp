@@ -220,7 +220,8 @@ export function updateHeaderBadge(used, tier = 'free') {
 
   if (tier === 'free') {
     const remaining = Math.max(0, 1 - used)
-    badge.textContent = remaining > 0 ? `Free (${used}/1)` : 'Free (Used up)'
+    const usedText = String(used)
+    badge.textContent = remaining > 0 ? `Free (${usedText}/1)` : 'Free (Used up)'
     badge.className = 'plan-badge-header'
   } else if (tier === 'plus') {
     badge.textContent = `Plus (${used}/5)`
