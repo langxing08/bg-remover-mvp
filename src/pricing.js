@@ -218,11 +218,26 @@ export function openPricingModal(mode) {
     }
     card.style.display = visible ? '' : 'none'
 
-    // ── Highlight ──
+    // ── Center the grid when only one card is visible ──
+    const grid = modalOverlay.querySelector('.plan-cards')
+    if (mode === 'plus-upgrade') {
+      grid.classList.add('plan-cards-single')
+    } else {
+      grid.classList.remove('plan-cards-single')
+    }
+
+    // ── Highlight & CTA button style ──
     const shouldHighlight = mode === 'plus-upgrade'
       ? planId === 'business'               // Business highlighted for upgrade
       : planId === 'plus'                   // Plus highlighted otherwise
     card.classList.toggle('highlighted', shouldHighlight)
+
+    // Make CTA button primary when highlighted
+    const cta = card.querySelector('.plan-cta')
+    if (cta) {
+      cta.classList.remove('btn-primary', 'btn-secondary', 'btn-free')
+      cta.classList.add(shouldHighlight ? 'btn-primary' : 'btn-secondary')
+    }
 
     const badge = card.querySelector('.plan-badge')
     if (badge) badge.hidden = !shouldHighlight

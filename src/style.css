@@ -563,6 +563,12 @@ footer p {
   margin-bottom: 28px;
 }
 
+/* Single card mode (Plus upgrade → only Business shown) */
+.plan-cards.plan-cards-single {
+  grid-template-columns: minmax(280px, 380px);
+  justify-content: center;
+}
+
 .plan-card {
   position: relative;
   display: flex;
