@@ -6,7 +6,7 @@ const PLANS = [
     name: 'Free',
     price: 0,
     period: '',
-    attemptsLabel: 'Total 3',
+    attemptsLabel: 'Total 1',
     features: ['HD Output'],
     exclusiveFeatures: [],
     btnText: 'Continue Free',
@@ -19,7 +19,7 @@ const PLANS = [
     name: 'Plus',
     price: 9,
     period: '/month',
-    attemptsLabel: '30 / month',
+    attemptsLabel: '5 / month',
     features: ['HD Output'],
     exclusiveFeatures: [],
     btnText: 'Upgrade to Plus',
@@ -32,7 +32,7 @@ const PLANS = [
     name: 'Business',
     price: 29,
     period: '/month',
-    attemptsLabel: '150 / month',
+    attemptsLabel: '10 / month',
     features: ['HD Output'],
     exclusiveFeatures: ['Higher Resolution Output', 'Priority Queue'],
     btnText: 'Choose Business',
@@ -128,9 +128,9 @@ export function initPricingModal() {
           <tbody>
             <tr>
               <td class="feature-label">Monthly Removals</td>
-              <td>Total 3</td>
-              <td class="col-plus">30 <span class="unit">/ month</span></td>
-              <td>150 <span class="unit">/ month</span></td>
+              <td>Total 1</td>
+              <td class="col-plus">5 <span class="unit">/ month</span></td>
+              <td>10 <span class="unit">/ month</span></td>
             </tr>
             <tr>
               <td class="feature-label">HD Output</td>
@@ -219,14 +219,14 @@ export function updateHeaderBadge(used, tier = 'free') {
   if (!badge) return
 
   if (tier === 'free') {
-    const remaining = Math.max(0, 3 - used)
-    badge.textContent = remaining > 0 ? `Free (${used + 1}/3)` : 'Free (Used up)'
+    const remaining = Math.max(0, 1 - used)
+    badge.textContent = remaining > 0 ? `Free (${used + 1}/1)` : 'Free (Used up)'
     badge.className = 'plan-badge-header'
   } else if (tier === 'plus') {
-    badge.textContent = `Plus (${used}/30)`
+    badge.textContent = `Plus (${used}/5)`
     badge.className = 'plan-badge-header badge-plus'
   } else if (tier === 'business') {
-    badge.textContent = `Business (${used}/150)`
+    badge.textContent = `Business (${used}/10)`
     badge.className = 'plan-badge-header badge-business'
   }
 
@@ -246,7 +246,7 @@ export function getExhaustedHTML() {
   return `
     <div id="exhaustedZone" class="exhausted-zone">
       <div class="exhausted-content">
-        <h2 class="exhausted-title">You've used all 3 free attempts ✨</h2>
+        <h2 class="exhausted-title">You've used all 1 free attempt ✨</h2>
         <p class="exhausted-sub">Upgrade to continue removing backgrounds.</p>
         <div class="plan-cards exhausted-cards">
           ${paidPlans.map(p => buildPlanCard(p, 'large')).join('')}
@@ -263,7 +263,7 @@ export function getLoginPromptHTML() {
     <div id="loginPrompt" class="login-prompt">
       <div class="login-prompt-body">
         <p class="login-prompt-title">🔒 Sign in to download your image</p>
-        <p class="login-prompt-sub">Free users get 3 attempts. No credit card required.</p>
+        <p class="login-prompt-sub">Free users get 1 attempt. No credit card required.</p>
         <button id="promptGoogleBtn" class="btn-google">
           <svg width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Sign in with Google
@@ -291,7 +291,7 @@ export function getWarningHTML(type, data) {
     const { used, total } = data
     return `
       <div class="callout callout-info">
-        <span class="callout-text">📊 You've used ${used} out of ${total} this month. Upgrade to Business for 150 removals + premium features.</span>
+        <span class="callout-text">📊 You've used ${used} out of ${total} this month. Upgrade to Business for 10 removals + premium features.</span>
         <button class="callout-btn callout-pricing-btn">Upgrade →</button>
         <button class="callout-close" aria-label="Dismiss">&times;</button>
       </div>

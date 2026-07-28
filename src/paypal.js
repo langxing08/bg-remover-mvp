@@ -184,8 +184,8 @@ export function clearSavedPlan() {
 /* ─── Main entry: called when user clicks a plan CTA ─── */
 
 const PLAN_INFO = {
-  plus:  { name: 'Plus',  price: 9,  total: 30 },
-  business: { name: 'Business', price: 29, total: 150 },
+  plus:  { name: 'Plus',  price: 9,  total: 5 },
+  business: { name: 'Business', price: 29, total: 10 },
 }
 
 export async function startPaypalCheckout(planId) {

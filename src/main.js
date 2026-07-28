@@ -81,7 +81,8 @@ function isExhausted() {
 }
 
 function isPlusNearLimit() {
-  return app.planTier === 'plus' && app.planUsed >= 25
+  // Warn when 80% used
+  return app.planTier === 'plus' && app.planUsed >= 4
 }
 
 function showDefaultView() {
@@ -293,7 +294,7 @@ async function processImage(file) {
 
       // Show upgrade suggestion if Plus user is near limit
       if (isPlusNearLimit()) {
-        injectCallout('plus-upgrade', { used: app.planUsed, total: 30 })
+        injectCallout('plus-upgrade', { used: app.planUsed, total: app.planTotal })
       }
     }
 
@@ -380,7 +381,7 @@ resetBtn.addEventListener('click', () => {
           const usage = loadUsage()
           app.planUsed = usage.used
           app.planTier = 'free'
-          app.planTotal = 3
+          app.planTotal = 1
         }
       }
       updatePlanDisplay()

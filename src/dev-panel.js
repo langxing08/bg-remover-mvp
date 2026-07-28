@@ -121,9 +121,9 @@ function injectPanel() {
       <div class="dev-field">
         <label for="devPlan">Plan</label>
         <select id="devPlan">
-          <option value="free" ${state.plan === 'free' ? 'selected' : ''}>Free (3 tries)</option>
-          <option value="plus" ${state.plan === 'plus' ? 'selected' : ''}>Plus (30/month) ⭐</option>
-          <option value="business" ${state.plan === 'business' ? 'selected' : ''}>Business (150/month)</option>
+          <option value="free" ${state.plan === 'free' ? 'selected' : ''}>Free (1 try)</option>
+          <option value="plus" ${state.plan === 'plus' ? 'selected' : ''}>Plus (5/month) ⭐</option>
+          <option value="business" ${state.plan === 'business' ? 'selected' : ''}>Business (10/month)</option>
         </select>
       </div>
 
@@ -159,7 +159,7 @@ function injectPanel() {
 
   function updateUsedRange() {
     const plan = planSelect.value
-    const max = plan === 'free' ? 3 : plan === 'plus' ? 30 : 150
+    const max = plan === 'free' ? 1 : plan === 'plus' ? 5 : 10
     usedSlider.max = max
     usedMax.textContent = max
     if (parseInt(usedSlider.value) > max) {
