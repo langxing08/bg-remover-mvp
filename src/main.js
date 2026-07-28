@@ -59,12 +59,18 @@ const app = {
 /* ─── Pricing modal init ─── */
 initPricingModal()
 
-/* ─── Exhausted zone container (inserted once) ─── */
+/* ─── Exhausted zone container (regenerated on tier change) ─── */
 let exhaustedEl = null
-function ensureExhaustedZone() {
-  if (exhaustedEl) return
+let exhaustedTier = ''
+function ensureExhaustedZone(tier) {
+  const currentTier = tier || app.planTier
+  // Only rebuild if tier changed or doesn't exist yet
+  if (exhaustedEl && exhaustedTier === currentTier && document.body.contains(exhaustedEl)) return
+
+  if (exhaustedEl) exhaustedEl.remove()
+  exhaustedTier = currentTier
   const wrapper = document.createElement('div')
-  wrapper.innerHTML = getExhaustedHTML()
+  wrapper.innerHTML = getExhaustedHTML(currentTier)
   exhaustedEl = wrapper.firstElementChild
   exhaustedEl.hidden = true
   main.insertBefore(exhaustedEl, processing)
@@ -77,7 +83,8 @@ function isFree() {
 }
 
 function isExhausted() {
-  return app.isAuthenticated && isFree() && app.planUsed >= app.planTotal
+  // Block ALL plans when usage reaches their limit
+  return app.isAuthenticated && app.planUsed >= app.planTotal
 }
 
 function isPlusNearLimit() {
@@ -116,8 +123,8 @@ function showResult() {
   result.hidden = false
 }
 
-function showExhausted() {
-  ensureExhaustedZone()
+function showExhausted(tier) {
+  ensureExhaustedZone(tier)
   uploadZone.hidden = true
   processing.hidden = true
   result.hidden = true

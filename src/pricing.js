@@ -240,17 +240,34 @@ export function hideHeaderBadge() {
 
 /* ─── Exhausted State (replaces upload zone) ─── */
 
-export function getExhaustedHTML() {
-  // Show only Plus & Business (free is exhausted)
-  const paidPlans = PLANS.filter(p => p.id !== 'free')
+export function getExhaustedHTML(tierOverride) {
+  const tier = tierOverride || 'free'
+
+  let title, subtitle
+  if (tier === 'plus') {
+    title = "You've used all your Plus attempts this month ✨"
+    subtitle = 'Upgrade to Business for more removals + premium features.'
+  } else if (tier === 'business') {
+    title = "You've used all your Business attempts this month ✨"
+    subtitle = 'Your limit will reset next month.'
+  } else {
+    title = "You've used all 1 free attempt ✨"
+    subtitle = 'Upgrade to continue removing backgrounds.'
+  }
+
+  // Show upgrade options (skip current plan)
+  const upgradePlans = PLANS.filter(p => {
+    if (tier === 'free') return p.id !== 'free'
+    if (tier === 'plus') return p.id === 'business'
+    return false // business has no upgrade
+  })
+
   return `
     <div id="exhaustedZone" class="exhausted-zone">
       <div class="exhausted-content">
-        <h2 class="exhausted-title">You've used all 1 free attempt ✨</h2>
-        <p class="exhausted-sub">Upgrade to continue removing backgrounds.</p>
-        <div class="plan-cards exhausted-cards">
-          ${paidPlans.map(p => buildPlanCard(p, 'large')).join('')}
-        </div>
+        <h2 class="exhausted-title">${title}</h2>
+        <p class="exhausted-sub">${subtitle}</p>
+        ${upgradePlans.length ? `<div class="plan-cards exhausted-cards">${upgradePlans.map(p => buildPlanCard(p, 'large')).join('')}</div>` : ''}
       </div>
     </div>
   `
