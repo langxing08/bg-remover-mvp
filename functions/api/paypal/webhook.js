@@ -19,6 +19,12 @@ async function verifySignature(env, headers, bodyRaw) {
     return true
   }
 
+  // If headers are empty, the request is not from PayPal — reject
+  if (!headers['paypal-transmission-id'] || !headers['paypal-transmission-sig']) {
+    console.warn('[PayPal Webhook] Missing PayPal signature headers — rejecting')
+    return false
+  }
+
   const basic = btoa(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`)
   const tokenRes = await fetch(`${API_BASE}/v1/oauth2/token`, {
     method: 'POST',

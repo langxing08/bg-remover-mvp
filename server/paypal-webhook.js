@@ -15,6 +15,12 @@ const API_BASE = 'https://api-m.sandbox.paypal.com'
  * POSTs the notification data + metadata to PayPal's verification endpoint.
  */
 async function verifyWebhookSignature(clientId, clientSecret, webhookId, headers, bodyRaw) {
+  // If headers are empty, the request is not from PayPal — reject
+  if (!headers['paypal-transmission-id'] || !headers['paypal-transmission-sig']) {
+    console.warn('[PayPal Webhook] Missing PayPal signature headers — rejecting')
+    return false
+  }
+
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
   const tokenRes = await fetch(`${API_BASE}/v1/oauth2/token`, {
     method: 'POST',
