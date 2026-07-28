@@ -156,6 +156,18 @@ function savePlan(tier, total) {
   localStorage.setItem(PLAN_KEY, JSON.stringify(data))
 }
 
+/**
+ * Update the used count for a paid plan (Plus/Business).
+ * Called after each successful image processing.
+ */
+export function updatePlanUsage(used) {
+  const plan = loadSavedPlan()
+  if (plan) {
+    plan.used = used
+    localStorage.setItem(PLAN_KEY, JSON.stringify(plan))
+  }
+}
+
 export function loadSavedPlan() {
   try {
     const raw = localStorage.getItem(PLAN_KEY)

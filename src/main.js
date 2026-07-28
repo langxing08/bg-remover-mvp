@@ -12,7 +12,7 @@ import {
   saveUsage,
   resetUsage,
 } from './pricing.js'
-import { startPaypalCheckout, loadSavedPlan } from './paypal.js'
+import { startPaypalCheckout, loadSavedPlan, updatePlanUsage } from './paypal.js'
 
 /* ─── DOM refs ─── */
 
@@ -276,18 +276,20 @@ async function processImage(file) {
       `
       downloadBtn.disabled = false
 
-      // Increment usage for free users after successful processing
+      // Increment usage for all authenticated users after successful processing
+      app.planUsed++
       if (isFree()) {
-        app.planUsed++
         saveUsage(app.planUsed)
-        updatePlanDisplay()
-
-        // Show warning if this was second-to-last attempt
+        // Show warning if this was last free attempt
         const remaining = app.planTotal - app.planUsed
         if (remaining === 1) {
           injectCallout('low-attempt', { remaining: 1 })
         }
+      } else {
+        // Paid plan — save usage to plan storage
+        updatePlanUsage(app.planUsed)
       }
+      updatePlanDisplay()
 
       // Show upgrade suggestion if Plus user is near limit
       if (isPlusNearLimit()) {
