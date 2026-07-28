@@ -199,19 +199,31 @@ document.addEventListener('click', (e) => {
   }
 })
 
-export function openPricingModal(highlightPlan) {
+export function openPricingModal(mode) {
+  // mode: 'default' | 'free' | 'plus-upgrade'
   if (!modalOverlay) initPricingModal()
   modalOverlay.hidden = false
   document.body.style.overflow = 'hidden'
 
-  // Update which plan card is highlighted
   const cards = modalOverlay.querySelectorAll('.plan-card')
   cards.forEach(card => {
     const planId = card.querySelector('.plan-cta')?.dataset.plan
-    const shouldHighlight = highlightPlan ? planId === highlightPlan : planId === 'plus'
-    card.classList.toggle('highlighted', !!shouldHighlight)
 
-    // Update badge visibility
+    // ── Visibility ──
+    let visible = true
+    if (mode === 'free') {
+      visible = planId !== 'free'           // hide Free for free users
+    } else if (mode === 'plus-upgrade') {
+      visible = planId === 'business'       // only Business for Plus upgrade
+    }
+    card.style.display = visible ? '' : 'none'
+
+    // ── Highlight ──
+    const shouldHighlight = mode === 'plus-upgrade'
+      ? planId === 'business'               // Business highlighted for upgrade
+      : planId === 'plus'                   // Plus highlighted otherwise
+    card.classList.toggle('highlighted', shouldHighlight)
+
     const badge = card.querySelector('.plan-badge')
     if (badge) badge.hidden = !shouldHighlight
   })

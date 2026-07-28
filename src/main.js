@@ -151,11 +151,11 @@ function injectCallout(type, data) {
   wrapper.innerHTML = html
   const calloutEl = wrapper.firstElementChild
   result.appendChild(calloutEl)
-  // Wire the "See Plans / Upgrade" button — highlight business for Plus users
+  // Wire the "See Plans / Upgrade" button — mode depends on user type
   const ctaBtn = calloutEl.querySelector('.callout-pricing-btn')
   if (ctaBtn) {
-    const highlight = type === 'plus-upgrade' ? 'business' : undefined
-    ctaBtn.addEventListener('click', () => openPricingModal(highlight))
+    const mode = type === 'plus-upgrade' ? 'plus-upgrade' : type === 'low-attempt' ? 'free' : undefined
+    ctaBtn.addEventListener('click', () => openPricingModal(mode))
   }
   // Wire the close button
   const closeBtn = calloutEl.querySelector('.callout-close')
