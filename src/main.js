@@ -382,6 +382,7 @@ function restorePendingResult() {
         switchTab('result')
         showResult()
       })
+      .catch(() => { /* silently fail, user can re-upload */ })
 
     // Count this as a used attempt since the image was already processed
     if (countAsUsage) {
@@ -393,7 +394,6 @@ function restorePendingResult() {
       }
       updatePlanDisplay()
     }
-      .catch(() => { /* silently fail, user can re-upload */ })
 
     return true
   } catch {
