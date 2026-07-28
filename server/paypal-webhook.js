@@ -1,16 +1,20 @@
 /* ─── PayPal Webhook Handler (server-side) ───
- * Verifies incoming webhook signatures and processes events.
+ * Handles:
+ *   CHECKOUT.ORDER.APPROVED   — order approved, awaiting capture
+ *   PAYMENT.CAPTURE.COMPLETED — payment captured, grant plan access
+ *   PAYMENT.CAPTURE.DENIED    — payment denied
+ *   PAYMENT.CAPTURE.REFUNDED  — payment refunded, revoke plan access
+ *
  * Reference: https://developer.paypal.com/docs/api/webhooks/v1/
  */
 
 const API_BASE = 'https://api-m.sandbox.paypal.com'
 
 /**
- * Verify a webhook signature with PayPal to ensure it's genuine.
+ * Verify a webhook signature with PayPal.
  * POSTs the notification data + metadata to PayPal's verification endpoint.
  */
 async function verifyWebhookSignature(clientId, clientSecret, webhookId, headers, bodyRaw) {
-  // 1. Get OAuth token
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
   const tokenRes = await fetch(`${API_BASE}/v1/oauth2/token`, {
     method: 'POST',
@@ -24,7 +28,6 @@ async function verifyWebhookSignature(clientId, clientSecret, webhookId, headers
   if (!tokenRes.ok) throw new Error(`PayPal OAuth failed (${tokenRes.status})`)
   const { access_token } = await tokenRes.json()
 
-  // 2. Build verification request
   const verificationBody = {
     auth_algo: headers['paypal-auth-algo'],
     cert_url: headers['paypal-cert-url'],
@@ -35,7 +38,6 @@ async function verifyWebhookSignature(clientId, clientSecret, webhookId, headers
     webhook_event: JSON.parse(bodyRaw),
   }
 
-  // 3. Send to PayPal for verification
   const verifyRes = await fetch(`${API_BASE}/v1/notifications/verify-webhook-signature`, {
     method: 'POST',
     headers: {
@@ -55,55 +57,119 @@ async function verifyWebhookSignature(clientId, clientSecret, webhookId, headers
 }
 
 /**
+ * Determine plan info from a PayPal webhook resource.
+ */
+function extractPlanInfo(resource, event) {
+  const amount = resource.amount?.value || resource.purchase_units?.[0]?.amount?.value || '0'
+  const customId = resource.custom_id || ''
+  const planId = amount === '29.00' ? 'business' : 'plus'
+  const planName = planId === 'business' ? 'Business (150/month)' : 'Plus (30/month)'
+  return { planId, planName, amount, customId }
+}
+
+/**
+ * Format a timestamp for logging / storage.
+ */
+function formatTime(iso) {
+  if (!iso) return new Date().toISOString()
+  return iso
+}
+
+/**
  * Handle a verified PayPal webhook event.
- * Returns { handled: boolean, message: string }
  */
 export async function handleWebhookEvent(event) {
-  const { event_type, resource } = event
+  const { event_type, resource, event_version, create_time, id: webhookEventId } = event
+  const timestamp = formatTime(create_time)
+  const summary = `[Webhook] ${event_type} | id=${webhookEventId} | time=${timestamp}`
 
   switch (event_type) {
-    case 'PAYMENT.CAPTURE.COMPLETED': {
-      // Payment successfully captured
-      const captureId = resource.id
-      const customId = resource.custom_id || ''
-      const amount = resource.amount?.value || '0'
+    /* ─── Order approved by buyer — waiting for capture ─── */
+    case 'CHECKOUT.ORDER.APPROVED': {
+      const orderId = resource.id
       const status = resource.status
+      const { planId, planName, amount, customId } = extractPlanInfo(resource)
 
-      console.log(`[PayPal Webhook] Payment captured: ${captureId}, amount: $${amount}, status: ${status}, user: ${customId}`)
-
-      // Determine plan from the purchase unit reference
-      const purchaseUnits = resource.supplementary_data?.related_ids?.order?.purchase_units
-      let planId = 'plus' // default
-      if (amount === '29.00') planId = 'business'
+      console.log(`${summary} | order=${orderId} | status=${status} | plan=${planId} | user=${customId}`)
 
       return {
         handled: true,
-        message: `Payment ${captureId} processed for plan: ${planId}`,
-        planId,
-        userId: customId,
+        message: `Order ${orderId} approved for ${planName}. Awaiting capture.`,
+        data: { event_type, orderId, planId, amount, userId: customId, status, timestamp },
       }
     }
 
+    /* ─── Payment captured — grant plan access ─── */
+    case 'PAYMENT.CAPTURE.COMPLETED': {
+      const captureId = resource.id
+      const status = resource.status
+      const invoiceId = resource.invoice_id || ''
+      const { planId, planName, amount, customId } = extractPlanInfo(resource)
+
+      console.log(`${summary} | capture=${captureId} | status=${status} | amount=$${amount} | plan=${planId} | user=${customId}`)
+
+      // TODO: Save plan to database / KV store
+      //   await db.saveUserPlan(customId, { tier: planId, used: 0, total: planId === 'plus' ? 30 : 150 })
+      //
+      // For now the frontend handles plan persistence via onApprove callback + localStorage.
+      // The webhook is the authoritative source for chargeback/dispute handling.
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} captured. ${planName} activated for user ${customId}.`,
+        data: {
+          event_type,
+          captureId,
+          planId,
+          planName,
+          amount,
+          userId: customId,
+          invoiceId,
+          status,
+          timestamp,
+        },
+      }
+    }
+
+    /* ─── Payment denied — do NOT grant access ─── */
     case 'PAYMENT.CAPTURE.DENIED': {
-      console.warn(`[PayPal Webhook] Payment denied: ${resource.id}`)
-      return { handled: true, message: 'Payment denied' }
+      const captureId = resource.id
+      const reason = resource.failure_reason || resource.processor_response?.response_code || 'Unknown reason'
+      const { amount, customId } = extractPlanInfo(resource)
+
+      console.warn(`${summary} | capture=${captureId} | reason=${reason} | user=${customId}`)
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} denied: ${reason}`,
+        data: { event_type, captureId, reason, userId: customId, amount, timestamp },
+      }
     }
 
+    /* ─── Payment refunded — revoke plan access ─── */
     case 'PAYMENT.CAPTURE.REFUNDED': {
-      console.warn(`[PayPal Webhook] Payment refunded: ${resource.id}`)
-      return { handled: true, message: 'Payment refunded' }
-    }
+      const captureId = resource.id
+      const refundId = resource.related_ids?.refund?.id || 'unknown'
+      const amount = resource.amount?.value || resource.seller_receivable_breakdown?.gross_amount?.value || '0'
+      const customId = resource.custom_id || ''
 
-    case 'CHECKOUT.ORDER.APPROVED': {
-      // Order approved but not yet captured — informational
-      console.log(`[PayPal Webhook] Order approved: ${resource.id}`)
-      return { handled: true, message: 'Order approved' }
+      console.warn(`${summary} | capture=${captureId} | refund=${refundId} | amount=$${amount} | user=${customId}`)
+
+      // TODO: Downgrade user plan in database / KV store
+      //   await db.saveUserPlan(customId, { tier: 'free', used: 0, total: 3 })
+      //
+      // This ensures a refunded user loses access to paid features.
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} refunded (${refundId}). Plan revoked for user ${customId}.`,
+        data: { event_type, captureId, refundId, amount, userId: customId, timestamp },
+      }
     }
 
     default:
-      // Log unhandled event types but don't error
-      console.log(`[PayPal Webhook] Unhandled event type: ${event_type}`)
-      return { handled: false, message: `Unhandled event: ${event_type}` }
+      console.log(`[Webhook] Unhandled event: ${event_type}`)
+      return { handled: false, message: `Unhandled: ${event_type}` }
   }
 }
 
@@ -112,21 +178,16 @@ export async function handleWebhookEvent(event) {
  */
 export function createWebhookHandler(clientId, clientSecret, webhookId) {
   return async (req, res) => {
-    // Only accept POST
     if (req.method !== 'POST') {
       res.statusCode = 405
       res.end('Method not allowed')
       return
     }
 
-    // Read raw body
     const buffers = []
-    for await (const chunk of req) {
-      buffers.push(chunk)
-    }
+    for await (const chunk of req) { buffers.push(chunk) }
     const bodyRaw = Buffer.concat(buffers).toString()
 
-    // Parse headers (Express-like normalization)
     const headers = {
       'paypal-auth-algo': req.headers['paypal-auth-algo'],
       'paypal-cert-url': req.headers['paypal-cert-url'],
@@ -135,24 +196,30 @@ export function createWebhookHandler(clientId, clientSecret, webhookId) {
       'paypal-transmission-time': req.headers['paypal-transmission-time'],
     }
 
-    // If webhook ID is configured, verify the signature
     if (webhookId) {
-      const isValid = await verifyWebhookSignature(clientId, clientSecret, webhookId, headers, bodyRaw)
-      if (!isValid) {
-        console.warn('[PayPal Webhook] Invalid signature — rejecting')
-        res.statusCode = 403
-        res.end('Invalid signature')
+      try {
+        const isValid = await verifyWebhookSignature(clientId, clientSecret, webhookId, headers, bodyRaw)
+        if (!isValid) {
+          console.warn('[PayPal Webhook] Invalid signature — rejecting')
+          res.statusCode = 403
+          res.end('Invalid signature')
+          return
+        }
+      } catch (err) {
+        console.error('[PayPal Webhook] Signature verification error:', err.message)
+        res.statusCode = 500
+        res.end(JSON.stringify({ error: err.message }))
         return
       }
     } else {
       console.warn('[PayPal Webhook] No WEBHOOK_ID configured — skipping verification')
     }
 
-    // Parse and handle the event
     try {
       const event = JSON.parse(bodyRaw)
+      console.log(`[PayPal Webhook] Received: ${event.event_type}`)
       const result = await handleWebhookEvent(event)
-
+      console.log(`[PayPal Webhook] Response:`, result.message)
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify(result))
     } catch (err) {

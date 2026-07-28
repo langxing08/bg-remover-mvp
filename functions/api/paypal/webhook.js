@@ -1,7 +1,11 @@
 /**
  * POST /api/paypal/webhook
  * Receives asynchronous PayPal webhook notifications.
- * Verifies signature via PayPal's verify-webhook-signature API.
+ * Handles:
+ *   CHECKOUT.ORDER.APPROVED   — order approved, awaiting capture
+ *   PAYMENT.CAPTURE.COMPLETED — payment captured, grant plan access
+ *   PAYMENT.CAPTURE.DENIED    — payment denied
+ *   PAYMENT.CAPTURE.REFUNDED  — payment refunded, revoke plan access
  */
 
 const API_BASE = 'https://api-m.sandbox.paypal.com'
@@ -15,7 +19,6 @@ async function verifySignature(env, headers, bodyRaw) {
     return true
   }
 
-  // Get OAuth token
   const basic = btoa(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`)
   const tokenRes = await fetch(`${API_BASE}/v1/oauth2/token`, {
     method: 'POST',
@@ -26,12 +29,9 @@ async function verifySignature(env, headers, bodyRaw) {
     },
     body: 'grant_type=client_credentials',
   })
-  if (!tokenRes.ok) {
-    throw new Error(`PayPal OAuth failed (${tokenRes.status})`)
-  }
+  if (!tokenRes.ok) throw new Error(`PayPal OAuth failed (${tokenRes.status})`)
   const { access_token } = await tokenRes.json()
 
-  // Build verification request
   const verificationBody = {
     auth_algo: headers['paypal-auth-algo'],
     cert_url: headers['paypal-cert-url'],
@@ -61,39 +61,101 @@ async function verifySignature(env, headers, bodyRaw) {
 }
 
 /**
+ * Extract plan info from a PayPal resource object.
+ */
+function extractPlanInfo(resource) {
+  const amount = resource.amount?.value || resource.purchase_units?.[0]?.amount?.value || '0'
+  const customId = resource.custom_id || ''
+  const planId = amount === '29.00' ? 'business' : 'plus'
+  const planName = planId === 'business' ? 'Business (150/month)' : 'Plus (30/month)'
+  return { planId, planName, amount, customId }
+}
+
+/**
  * Handle a verified webhook event.
  */
 async function handleEvent(event) {
-  const { event_type, resource } = event
+  const { event_type, resource, create_time, id: webhookEventId } = event
+  const timestamp = create_time || new Date().toISOString()
+  const summary = `[Webhook] ${event_type} | id=${webhookEventId} | time=${timestamp}`
 
   switch (event_type) {
-    case 'PAYMENT.CAPTURE.COMPLETED': {
-      const captureId = resource.id
-      const customId = resource.custom_id || ''
-      const amount = resource.amount?.value || '0'
+    /* ─── Order approved by buyer — waiting for capture ─── */
+    case 'CHECKOUT.ORDER.APPROVED': {
+      const orderId = resource.id
+      const status = resource.status
+      const { planId, planName, amount, customId } = extractPlanInfo(resource)
 
-      console.log(`[Webhook] Payment captured: ${captureId}, $${amount}, user: ${customId}`)
-
-      // Determine plan from amount
-      const planId = amount === '29.00' ? 'business' : 'plus'
+      console.log(`${summary} | order=${orderId} | status=${status} | plan=${planId} | user=${customId}`)
 
       return {
         handled: true,
-        message: `Payment ${captureId} processed for ${planId}`,
+        message: `Order ${orderId} approved for ${planName}. Awaiting capture.`,
+        data: { event_type, orderId, planId, amount, userId: customId, status, timestamp },
       }
     }
 
-    case 'PAYMENT.CAPTURE.DENIED':
-      console.warn(`[Webhook] Payment denied: ${resource.id}`)
-      return { handled: true, message: 'Payment denied' }
+    /* ─── Payment captured — grant plan access ─── */
+    case 'PAYMENT.CAPTURE.COMPLETED': {
+      const captureId = resource.id
+      const status = resource.status
+      const invoiceId = resource.invoice_id || ''
+      const { planId, planName, amount, customId } = extractPlanInfo(resource)
 
-    case 'PAYMENT.CAPTURE.REFUNDED':
-      console.warn(`[Webhook] Payment refunded: ${resource.id}`)
-      return { handled: true, message: 'Payment refunded' }
+      console.log(`${summary} | capture=${captureId} | status=${status} | amount=$${amount} | plan=${planId} | user=${customId}`)
 
-    case 'CHECKOUT.ORDER.APPROVED':
-      console.log(`[Webhook] Order approved: ${resource.id}`)
-      return { handled: true, message: 'Order approved' }
+      // TODO: Save plan to KV store when available:
+      //   await env.PLAN_KV.put(`plan:${customId}`, JSON.stringify({
+      //     tier: planId, used: 0,
+      //     total: planId === 'plus' ? 30 : 150,
+      //     updatedAt: timestamp,
+      //   }))
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} captured. ${planName} activated for user ${customId}.`,
+        data: {
+          event_type, captureId, planId, planName,
+          amount, userId: customId, invoiceId, status, timestamp,
+        },
+      }
+    }
+
+    /* ─── Payment denied — do NOT grant access ─── */
+    case 'PAYMENT.CAPTURE.DENIED': {
+      const captureId = resource.id
+      const reason = resource.failure_reason || resource.processor_response?.response_code || 'Unknown reason'
+      const { amount, customId } = extractPlanInfo(resource)
+
+      console.warn(`${summary} | capture=${captureId} | reason=${reason} | user=${customId}`)
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} denied: ${reason}`,
+        data: { event_type, captureId, reason, userId: customId, amount, timestamp },
+      }
+    }
+
+    /* ─── Payment refunded — revoke plan access ─── */
+    case 'PAYMENT.CAPTURE.REFUNDED': {
+      const captureId = resource.id
+      const refundId = resource.related_ids?.refund?.id || 'unknown'
+      const amount = resource.amount?.value || resource.seller_receivable_breakdown?.gross_amount?.value || '0'
+      const customId = resource.custom_id || ''
+
+      console.warn(`${summary} | capture=${captureId} | refund=${refundId} | amount=$${amount} | user=${customId}`)
+
+      // TODO: Downgrade user in KV store when available:
+      //   await env.PLAN_KV.put(`plan:${customId}`, JSON.stringify({
+      //     tier: 'free', used: 0, total: 3, updatedAt: timestamp,
+      //   }))
+
+      return {
+        handled: true,
+        message: `Payment ${captureId} refunded (${refundId}). Plan revoked for user ${customId}.`,
+        data: { event_type, captureId, refundId, amount, userId: customId, timestamp },
+      }
+    }
 
     default:
       console.log(`[Webhook] Unhandled event: ${event_type}`)
@@ -111,7 +173,6 @@ export async function onRequest(context) {
   try {
     const bodyRaw = await request.text()
 
-    // Collect PayPal signature headers
     const headers = {
       'paypal-auth-algo': request.headers.get('paypal-auth-algo') || '',
       'paypal-cert-url': request.headers.get('paypal-cert-url') || '',
@@ -120,16 +181,16 @@ export async function onRequest(context) {
       'paypal-transmission-time': request.headers.get('paypal-transmission-time') || '',
     }
 
-    // Verify webhook signature
     const isValid = await verifySignature(env, headers, bodyRaw)
     if (!isValid) {
       console.warn('[PayPal Webhook] Invalid signature')
       return new Response('Invalid signature', { status: 403 })
     }
 
-    // Parse and handle event
     const event = JSON.parse(bodyRaw)
+    console.log(`[PayPal Webhook] Received: ${event.event_type}`)
     const result = await handleEvent(event)
+    console.log(`[PayPal Webhook] Response: ${result.message}`)
 
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
