@@ -315,6 +315,79 @@ async function processImage(file) {
   }
 }
 
+/* ─── Pending result persistence (login redirect) ─── */
+
+const PENDING_KEY = 'bg_pending_result'
+
+async function blobToDataURL(blob) {
+  const buf = await blob.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return `data:${blob.type};base64,${btoa(binary)}`
+}
+
+async function savePendingResult() {
+  if (!currentResultBlob) return
+  const data = {
+    fileName: currentFileName,
+    resultDataUrl: await blobToDataURL(currentResultBlob),
+  }
+  // Also save the original image so it's visible after login
+  if (originalImage.src && originalImage.src.startsWith('blob:')) {
+    try {
+      const res = await fetch(originalImage.src)
+      data.originalDataUrl = await blobToDataURL(await res.blob())
+    } catch { /* original unavailable, result still works */ }
+  }
+  sessionStorage.setItem(PENDING_KEY, JSON.stringify(data))
+}
+
+function restorePendingResult() {
+  const raw = sessionStorage.getItem(PENDING_KEY)
+  if (!raw) return false
+  sessionStorage.removeItem(PENDING_KEY)
+
+  try {
+    const { fileName, resultDataUrl, originalDataUrl } = JSON.parse(raw)
+    currentFileName = fileName || ''
+
+    // Restore original image if available
+    if (originalDataUrl) originalImage.src = originalDataUrl
+
+    // Fetch the data URL to create a blob
+    fetch(resultDataUrl)
+      .then(r => r.blob())
+      .then(blob => {
+        currentResultBlob = blob
+        resultImage.src = resultDataUrl
+
+        // Show file info
+        const sizeKb = (blob.size / 1024).toFixed(0)
+        imageInfo.textContent = `${fileName || 'image'}-no-bg.png (${sizeKb} KB)`
+
+        // Update download button for authenticated user
+        downloadBtn.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download PNG
+        `
+        downloadBtn.disabled = false
+
+        switchTab('result')
+        showResult()
+      })
+      .catch(() => { /* silently fail, user can re-upload */ })
+
+    return true
+  } catch {
+    return false
+  }
+}
+
 /* ─── Tab switching ─── */
 function switchTab(tab) {
   const isOriginal = tab === 'original'
@@ -329,8 +402,10 @@ tabOriginal.addEventListener('click', () => switchTab('original'))
 tabResult.addEventListener('click', () => switchTab('result'))
 
 /* ─── Download ─── */
-downloadBtn.addEventListener('click', () => {
+downloadBtn.addEventListener('click', async () => {
   if (!app.isAuthenticated) {
+    // Save the processed result so it's available after login redirect
+    await savePendingResult()
     window.location.href = '/api/auth/google'
     return
   }
@@ -398,6 +473,9 @@ resetBtn.addEventListener('click', () => {
       if (isExhausted()) {
         showExhausted()
       }
+
+      // Restore pending result from before-login redirect
+      restorePendingResult()
     } else {
       app.isAuthenticated = false
       loginBtn.hidden = false
