@@ -340,6 +340,8 @@ async function savePendingResult() {
       data.originalDataUrl = await blobToDataURL(await res.blob())
     } catch { /* original unavailable, result still works */ }
   }
+  // Flag that this was already processed — usage should be counted after login
+  data.countAsUsage = true
   sessionStorage.setItem(PENDING_KEY, JSON.stringify(data))
 }
 
@@ -380,6 +382,17 @@ function restorePendingResult() {
         switchTab('result')
         showResult()
       })
+
+    // Count this as a used attempt since the image was already processed
+    if (countAsUsage) {
+      app.planUsed++
+      if (isFree()) {
+        saveUsage(app.planUsed)
+      } else {
+        updatePlanUsage(app.planUsed)
+      }
+      updatePlanDisplay()
+    }
       .catch(() => { /* silently fail, user can re-upload */ })
 
     return true
