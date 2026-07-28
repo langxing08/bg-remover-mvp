@@ -968,10 +968,13 @@ footer p {
   inset: 0;
   z-index: 1000;
   background: rgba(0, 0, 0, 0.5);
+  padding: 20px;
+}
+
+.paypal-checkout-overlay:not([hidden]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
 }
 
 .paypal-checkout-modal {

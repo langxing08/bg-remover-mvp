@@ -167,10 +167,17 @@ pricingBtn.addEventListener('click', openPricingModal)
 planBadge.addEventListener('click', openPricingModal)
 
 /* ─── PayPal: handle plan selection from pricing modal ─── */
-document.addEventListener('plan:select', (e) => {
+document.addEventListener('plan:select', async (e) => {
   const { planId } = e.detail
+  console.log('[Plan] Selected:', planId)
   closePricingModal()
-  startPaypalCheckout(planId)
+  // Small delay to let modal close animation complete
+  await new Promise(r => setTimeout(r, 300))
+  try {
+    await startPaypalCheckout(planId)
+  } catch (err) {
+    console.error('[Plan] PayPal checkout failed:', err)
+  }
 })
 
 /* ─── Upload handlers ─── */

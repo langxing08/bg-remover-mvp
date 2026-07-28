@@ -178,17 +178,26 @@ export function initPricingModal() {
     const cta = e.target.closest('.plan-cta')
     if (!cta) return
     e.preventDefault()
-    // For free-tier CTA, just close the modal
     if (cta.dataset.plan === 'free') {
       closePricingModal()
       return
     }
-    // For paid plans, dispatch event (main.js or future payment module handles it)
     document.dispatchEvent(new CustomEvent('plan:select', { detail: { planId: cta.dataset.plan } }))
   })
 
   document.body.appendChild(modalOverlay)
 }
+
+// Global CTA click handler — catches clicks outside the modal (e.g. exhausted zone)
+document.addEventListener('click', (e) => {
+  const cta = e.target.closest('.plan-cta')
+  if (!cta) return
+  if (modalOverlay && modalOverlay.contains(cta)) return
+  if (cta.dataset.plan !== 'free') {
+    e.preventDefault()
+    document.dispatchEvent(new CustomEvent('plan:select', { detail: { planId: cta.dataset.plan } }))
+  }
+})
 
 export function openPricingModal() {
   if (!modalOverlay) initPricingModal()
