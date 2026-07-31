@@ -3,12 +3,13 @@
  * Uses Sandbox API — switch to production for live.
  */
 
-const API_BASE = 'https://api-m.sandbox.paypal.com'
-
 /**
  * Get a PayPal OAuth 2.0 access token using Client ID + Secret from env.
  */
 export async function getPayPalToken(env) {
+  const API_BASE = env.PAYPAL_ENV === 'sandbox'
+    ? 'https://api-m.sandbox.paypal.com'
+    : 'https://api-m.paypal.com'
   const basic = btoa(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`)
 
   const res = await fetch(`${API_BASE}/v1/oauth2/token`, {

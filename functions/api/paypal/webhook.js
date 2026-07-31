@@ -8,12 +8,13 @@
  *   PAYMENT.CAPTURE.REFUNDED  — payment refunded, revoke plan access
  */
 
-const API_BASE = 'https://api-m.sandbox.paypal.com'
-
 /**
  * Verify webhook signature using PayPal's verification API.
  */
 async function verifySignature(env, headers, bodyRaw) {
+  const API_BASE = env.PAYPAL_ENV === 'sandbox'
+    ? 'https://api-m.sandbox.paypal.com'
+    : 'https://api-m.paypal.com'
   if (!env.PAYPAL_WEBHOOK_ID) {
     console.warn('[PayPal Webhook] PAYPAL_WEBHOOK_ID not configured — skipping verification')
     return true

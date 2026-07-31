@@ -23,7 +23,10 @@ export async function onRequest(context) {
 
     const token = await getPayPalToken(env)
 
-    const res = await fetch(`https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`, {
+    const API_BASE = env.PAYPAL_ENV === 'sandbox'
+      ? 'https://api-m.sandbox.paypal.com'
+      : 'https://api-m.paypal.com'
+    const res = await fetch(`${API_BASE}/v2/checkout/orders/${orderId}/capture`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

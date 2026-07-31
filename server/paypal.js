@@ -4,7 +4,9 @@
  * Live base:    https://api-m.paypal.com
  */
 
-const API_BASE = 'https://api-m.sandbox.paypal.com'
+const API_BASE = process.env.PAYPAL_ENV === 'sandbox'
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com'
 
 /**
  * Get an OAuth 2.0 access token from PayPal.

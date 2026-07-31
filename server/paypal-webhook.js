@@ -8,7 +8,9 @@
  * Reference: https://developer.paypal.com/docs/api/webhooks/v1/
  */
 
-const API_BASE = 'https://api-m.sandbox.paypal.com'
+const API_BASE = process.env.PAYPAL_ENV === 'sandbox'
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com'
 
 /**
  * Verify a webhook signature with PayPal.
